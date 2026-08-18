@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻找隐藏的梗</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 100vw;
+            height: 100vh;
+            cursor: none;
+        }
+
+        /* 游戏内自定义鼠标 - 默认箭头 */
+        #custom-cursor {
+            position: fixed;
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 9999;
+            left: -100px;
+            top: -100px;
+        }
+
+        /* 默认箭头样式 */
+        #custom-cursor.default {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M5 2 L5 20 L10 15 L14 22 L17 20 L13 13 L19 13 Z" fill="white" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>') no-repeat;
+            background-size: contain;
+        }
+
+        /* 手型样式 - 可交互对象 */
+        #custom-cursor.pointer {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M9 4 C9 3 10 2 11 2 C12 2 13 3 13 4 L13 10 L14 10 C15 10 16 11 16 12 L16 17 C16 20 14 22 11 22 L9 22 C6 22 4 20 4 17 L4 12 C4 11 5 10 6 10 C6 10 6.5 10 7 10.5 L7 4 C7 3 8 2 9 2 Z" fill="white" stroke="black" stroke-width="1.2" stroke-linejoin="round"/></svg>') no-repeat;
+            background-size: contain;
+        }
+
+        /* 隐藏所有元素的默认光标，但保持交互 */
+        button, .character, #game-container {
+            cursor: none !important;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 开始界面 */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+
+        #start-screen h1 {
+            color: white;
+            font-size: 48px;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 30px;
+        }
+
+        .mode-switch-btn {
+            margin-top: 40px;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .mode-switch-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .mode-btn {
+            padding: 20px 40px;
+            font-size: 24px;
+            background: #ffd700;
+            color: #333;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .mode-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .mode-btn .mode-desc {
+            font-size: 14px;
+            font-weight: normal;
+            margin-top: 8px;
+            color: #666;
+        }
+
+        /* 目标角色画像窗口 */
+        #target-portrait {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 3px solid #ffd700;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            display: none;
+        }
+
+        #target-portrait img {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto 10px;
+        }
+
+        #target-portrait p {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* 角色图片 */
+        .character {
+            position: absolute;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .character.animate-to-center {
+            transition: left 0.6s ease-out, top 0.6s ease-out, width 0.6s ease-out, height 0.6s ease-out;
+        }
+
+        .character img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* 结算界面 */
+        #result-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+        }
+
+        #result-screen h2 {
+            color: #ffd700;
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #result-screen p {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+
+        #restart-btn {
+            padding: 15px 40px;
+            font-size: 24px;
+            background: #ffd700;
+            color: #333;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        #restart-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* 移动端操作提示 */
+        #mobile-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 100;
+            display: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <!-- 自定义鼠标 -->
+    <div id="custom-cursor"></div>
+    
+    <div id="game-container">
+        <!-- 开始界面 -->
+        <div id="start-screen">
+            <h1>寻找隐藏的梗</h1>
+            <div class="mode-buttons">
+                <button class="mode-btn" id="btn-solo">
+                    专享模式
+                    <span class="mode-desc">场景中只有一个角色</span>
+                </button>
+                <button class="mode-btn" id="btn-mix">
+                    群英荟萃
+                    <span class="mode-desc">所有角色同场竞技</span>
+                </button>
+            </div>
+            <button class="mode-switch-btn" id="btn-switch-input">
+                当前：电脑端模式 | 切换到移动端
+            </button>
+        </div>
+
+        <!-- 目标角色画像窗口 -->
+        <div id="target-portrait">
+            <img id="target-img" src="" alt="目标角色">
+            <p id="target-name">寻找：哈基米</p>
+        </div>
+
+        <!-- 结算界面 -->
+        <div id="result-screen">
+            <h2>🎉 找到了！</h2>
+            <p id="result-time">用时：0.00 秒</p>
+            <button id="restart-btn">重新开始</button>
+        </div>
+
+        <!-- 移动端操作提示 -->
+        <div id="mobile-hint">
+            单指移动 = 鼠标拖动，双指点击/按住 = 鼠标点击
+        </div>
+    </div>
+
+    <script>
+        // 角色配置
+        const CHARACTER_CONFIGS = [
+            {
+                name: '哈基米',
+                imagePath: '哈基米/哈基米.gif',
+                audioPaths: [
+                    '哈基米/哈基米1.mp3',
+                    '哈基米/哈基米2.mp3',
+                    '哈基米/哈基米3.mp3',
+                ],
+                victoryAudioPath: '哈基米/胜利.mp3',
+                size: 100
+            },
+            {
+                name: '大狗叫',
+                imagePath: '大狗叫/大狗叫.gif',
+                audioPaths: [
+                    '大狗叫/大狗叫.mp3',
+                ],
+                victoryAudioPath: '大狗叫/胜利.mp3',
+                size: 100
+            },
+            {
+                name: '泥肘',
+                imagePath: '泥肘/泥肘.gif',
+                audioPaths: [
+                    '泥肘/你走.mp3',
+                ],
+                victoryAudioPath: '泥肘/胜利.mp3',
+                size: 100
+            },
+            {
+                name: '牛来',
+                imagePath: '牛来/牛来.png',
+                audioPaths: [],  // 牛来没有自己的持续音效
+                victoryAudioPath: null,  // 牛来没有胜利音效
+                clickAudioPath: '牛来/点击.mp3',  // 点击音效
+                canBeTarget: false,  // 不能作为目标
+                size: 100
+            }
+        ];
+
+        // 游戏模式
+        const MODE = {
+            SOLO: 'solo',       // 专享模式：只有一个角色
+            MIX: 'mix'          // 群英荟萃：所有角色
+        };
+
+        // 输入模式
+        const INPUT_MODE = {
+            DESKTOP: 'desktop', // 电脑端
+            MOBILE: 'mobile'    // 移动端
+        };
+
+        // 标准窗口大小（用于缩放计算）
+        const STANDARD_WINDOW_WIDTH = 1920;
+
+        // 角色类
+        class Character {
+            constructor(config) {
+                this.name = config.name;
+                this.imagePath = config.imagePath;
+                this.audioPaths = config.audioPaths || [];
+                this.victoryAudioPath = config.victoryAudioPath || null;
+                this.clickAudioPath = config.clickAudioPath || null;
+                this.canBeTarget = config.canBeTarget !== false; // 默认为true
+                this.isTarget = config.isTarget || false;
+                this.size = Math.floor(100 * (window.innerWidth / STANDARD_WINDOW_WIDTH));
+                this.element = null;
+                this.audioIndex = 0;
+                this.x = 0;
+                this.y = 0;
+                this.revealed = false; // 是否已被揭示（群英荟萃中点错时揭示）
+                this.lastPlayedCharacter = null; // 牛来专用：记录上次播放的角色
+            }
+
+            createElement() {
+                this.element = document.createElement('div');
+                this.element.className = 'character';
+                this.element.style.width = this.size + 'px';
+                this.element.style.height = this.size + 'px';
+                this.element.style.opacity = '0'; // 创建时就设置为透明
+                
+                const img = document.createElement('img');
+                img.src = this.imagePath;
+                img.alt = this.name;
+                this.element.appendChild(img);
+
+                this.element.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    game.handleClick(this);
+                });
+
+                return this.element;
+            }
+
+            setPosition(x, y) {
+                this.x = x;
+                this.y = y;
+                if (this.element) {
+                    this.element.style.left = x + 'px';
+                    this.element.style.top = y + 'px';
+                }
+            }
+
+            setOpacity(opacity) {
+                if (this.element) {
+                    this.element.style.opacity = opacity;
+                }
+            }
+        }
+
+        // 单个角色的音频播放器
+        class CharacterAudioPlayer {
+            constructor(character) {
+                this.character = character;
+                this.audioElements = [];
+                this.currentAudio = null;
+                this.preload();
+            }
+
+            preload() {
+                this.audioElements = this.character.audioPaths.map(path => {
+                    const audio = new Audio(path);
+                    audio.preload = 'auto';
+                    return audio;
+                });
+            }
+
+            calculateDistanceRatio() {
+                const mouseX = game.mouseX;
+                const mouseY = game.mouseY;
+                const charCenterX = this.character.x + this.character.size / 2;
+                const charCenterY = this.character.y + this.character.size / 2;
+                const distance = Math.sqrt(
+                    Math.pow(mouseX - charCenterX, 2) +
+                    Math.pow(mouseY - charCenterY, 2)
+                );
+                const maxDistance = Math.sqrt(
+                    Math.pow(window.innerWidth, 2) +
+                    Math.pow(window.innerHeight, 2)
+                );
+                return Math.min(1, distance / maxDistance);
+            }
+
+            calculateVolume() {
+                const normalizedDistance = this.calculateDistanceRatio();
+                const exponent = 1.74;
+                let volume = Math.max(0, Math.pow(1 - normalizedDistance, exponent));
+                // 被点击过的角色最终音量再*60%
+                if (this.character.revealed) {
+                    volume *= 0.6;
+                }
+                return volume;
+            }
+
+            calculatePlaybackRate() {
+                const normalizedDistance = this.calculateDistanceRatio();
+                const minRate = 1.0;
+                const maxRate = 1.5;
+                return maxRate - (maxRate - minRate) * normalizedDistance;
+            }
+
+            playNext() {
+                if (!game.isGameRunning) return;
+                if (this.audioElements.length === 0) return;
+
+                if (this.currentAudio) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+
+                const audio = this.audioElements[this.character.audioIndex % this.audioElements.length];
+                this.character.audioIndex++;
+
+                audio.volume = this.calculateVolume();
+                audio.playbackRate = this.calculatePlaybackRate();
+
+                this.currentAudio = audio;
+
+                audio.onended = () => {
+                    if (game.isGameRunning) {
+                        this.playNext();
+                    }
+                };
+
+                audio.play().catch(e => console.log('音频播放失败:', e));
+            }
+
+            update() {
+                if (this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.volume = this.calculateVolume();
+                    this.currentAudio.playbackRate = this.calculatePlaybackRate();
+                }
+            }
+
+            stop() {
+                if (this.currentAudio) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+                this.currentAudio = null;
+            }
+        }
+
+        // 牛来专用音频播放器：随机播放其他角色的音效（不连续重复同一角色）
+        class NiuLaiAudioPlayer {
+            constructor(character, audioManager) {
+                this.character = character;
+                this.audioManager = audioManager;
+                this.currentAudio = null;
+                this.lastPlayedCharacterName = null; // 记录上次播放的角色名
+                this.isRevealed = false; // 牛来是否已被点击显示
+            }
+
+            calculateVolume() {
+                // 复用普通角色的音量计算逻辑
+                const mouseX = game.mouseX;
+                const mouseY = game.mouseY;
+                const charCenterX = this.character.x + this.character.size / 2;
+                const charCenterY = this.character.y + this.character.size / 2;
+                const distance = Math.sqrt(
+                    Math.pow(mouseX - charCenterX, 2) +
+                    Math.pow(mouseY - charCenterY, 2)
+                );
+                const maxDistance = Math.sqrt(
+                    Math.pow(window.innerWidth, 2) +
+                    Math.pow(window.innerHeight, 2)
+                );
+                const normalizedDistance = Math.min(1, distance / maxDistance);
+                const exponent = 1.74;
+                let volume = Math.max(0, Math.pow(1 - normalizedDistance, exponent));
+                // 被点击过的角色最终音量再*60%
+                if (this.character.revealed) {
+                    volume *= 0.6;
+                }
+                return volume;
+            }
+
+            calculatePlaybackRate() {
+                const mouseX = game.mouseX;
+                const mouseY = game.mouseY;
+                const charCenterX = this.character.x + this.character.size / 2;
+                const charCenterY = this.character.y + this.character.size / 2;
+                const distance = Math.sqrt(
+                    Math.pow(mouseX - charCenterX, 2) +
+                    Math.pow(mouseY - charCenterY, 2)
+                );
+                const maxDistance = Math.sqrt(
+                    Math.pow(window.innerWidth, 2) +
+                    Math.pow(window.innerHeight, 2)
+                );
+                const normalizedDistance = Math.min(1, distance / maxDistance);
+                const minRate = 1.0;
+                const maxRate = 1.5;
+                return maxRate - (maxRate - minRate) * normalizedDistance;
+            }
+
+            // 获取其他角色（排除牛来自己）
+            getOtherCharacters() {
+                return game.characters.filter(c => c.name !== '牛来');
+            }
+
+            // 随机选择一个角色（不连续重复）
+            pickRandomCharacter() {
+                const others = this.getOtherCharacters();
+                if (others.length === 0) return null;
+                
+                // 如果只有一个其他角色，直接返回
+                if (others.length === 1) return others[0];
+                
+                // 随机选择，排除上次播放的角色
+                let available = others.filter(c => c.name !== this.lastPlayedCharacterName);
+                if (available.length === 0) available = others; // 兜底
+                
+                return available[Math.floor(Math.random() * available.length)];
+            }
+
+            playNext() {
+                if (!game.isGameRunning) return;
+
+                if (this.currentAudio) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+
+                let audio;
+                
+                if (this.isRevealed) {
+                    // 牛来显示后只循环播放自己的点击音效
+                    if (!this.character.clickAudioPath) return;
+                    audio = new Audio(this.character.clickAudioPath);
+                } else {
+                    // 没被点击前随机播放其他角色的音效
+                    const targetChar = this.pickRandomCharacter();
+                    if (!targetChar || targetChar.audioPaths.length === 0) return;
+                    
+                    this.lastPlayedCharacterName = targetChar.name;
+                    
+                    // 随机选择该角色的一个音效
+                    const audioPath = targetChar.audioPaths[Math.floor(Math.random() * targetChar.audioPaths.length)];
+                    audio = new Audio(audioPath);
+                }
+                
+                audio.volume = this.calculateVolume();
+                audio.playbackRate = this.calculatePlaybackRate();
+
+                this.currentAudio = audio;
+
+                audio.onended = () => {
+                    if (game.isGameRunning) {
+                        this.playNext();
+                    }
+                };
+
+                audio.play().catch(e => console.log('牛来音频播放失败:', e));
+            }
+
+            update() {
+                if (this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.volume = this.calculateVolume();
+                    this.currentAudio.playbackRate = this.calculatePlaybackRate();
+                }
+            }
+
+            stop() {
+                if (this.currentAudio) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                }
+                this.currentAudio = null;
+            }
+        }
+
+        // 音效管理器（管理所有角色的音频播放器）
+        class AudioManager {
+            constructor() {
+                this.players = new Map();
+            }
+
+            createPlayer(character) {
+                let player;
+                if (character.name === '牛来') {
+                    // 牛来使用特殊播放器：随机播放其他角色的音效
+                    player = new NiuLaiAudioPlayer(character, this);
+                } else {
+                    player = new CharacterAudioPlayer(character);
+                }
+                this.players.set(character.name, player);
+                return player;
+            }
+
+            startPlayer(character) {
+                let player = this.players.get(character.name);
+                if (!player) {
+                    player = this.createPlayer(character);
+                }
+                player.playNext();
+            }
+
+            startAll(characters) {
+                characters.forEach(character => {
+                    this.startPlayer(character);
+                });
+            }
+
+            updateAll() {
+                this.players.forEach(player => player.update());
+            }
+
+            stopAll() {
+                this.players.forEach(player => player.stop());
+            }
+
+            clearAll() {
+                this.stopAll();
+                this.players.clear();
+            }
+        }
+
+        // 游戏管理器
+        class GameManager {
+            constructor() {
+                this.allCharacterConfigs = CHARACTER_CONFIGS;
+                this.characters = [];
+                this.targetCharacter = null;
+                this.isGameRunning = false;
+                this.startTime = 0;
+                this.mouseX = window.innerWidth / 2;
+                this.mouseY = window.innerHeight / 2;
+                this.audioManager = new AudioManager();
+                this.currentMode = null;
+                this.inputMode = INPUT_MODE.DESKTOP;
+                
+                // 移动端触摸状态
+                this.touchState = {
+                    firstTouchId: null,      // 第一指（控制鼠标移动）
+                    secondTouchActive: false, // 第二指是否按下
+                    isDragging: false         // 是否正在拖动
+                };
+                
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                // 专享模式
+                document.getElementById('btn-solo').addEventListener('click', () => {
+                    this.startGame(MODE.SOLO);
+                });
+
+                // 群英荟萃模式
+                document.getElementById('btn-mix').addEventListener('click', () => {
+                    this.startGame(MODE.MIX);
+                });
+
+                // 重新开始
+                document.getElementById('restart-btn').addEventListener('click', () => {
+                    this.restartGame();
+                });
+
+                // 切换输入模式
+                document.getElementById('btn-switch-input').addEventListener('click', () => {
+                    this.toggleInputMode();
+                });
+
+                // 自定义鼠标
+                const customCursor = document.getElementById('custom-cursor');
+                customCursor.className = 'default'; // 默认箭头样式
+                
+                // 电脑端：鼠标移动
+                document.addEventListener('mousemove', (e) => {
+                    if (this.inputMode !== INPUT_MODE.DESKTOP) return;
+                    
+                    this.mouseX = e.clientX;
+                    this.mouseY = e.clientY;
+                    this.audioManager.updateAll();
+                    
+                    // 更新自定义鼠标位置
+                    customCursor.style.left = e.clientX + 'px';
+                    customCursor.style.top = e.clientY + 'px';
+                });
+                
+                // 鼠标进入窗口时显示自定义鼠标
+                document.addEventListener('mouseenter', () => {
+                    if (this.inputMode === INPUT_MODE.DESKTOP) {
+                        customCursor.style.display = 'block';
+                    }
+                });
+                
+                // 鼠标离开窗口时隐藏自定义鼠标
+                document.addEventListener('mouseleave', () => {
+                    if (this.inputMode === INPUT_MODE.DESKTOP) {
+                        customCursor.style.display = 'none';
+                    }
+                });
+                
+                // 检测可交互对象，切换鼠标样式（电脑端）
+                document.addEventListener('mouseover', (e) => {
+                    if (this.inputMode !== INPUT_MODE.DESKTOP) return;
+                    
+                    const target = e.target;
+                    // 检查是否悬停在按钮或角色上
+                    if (target.tagName === 'BUTTON' || target.closest('.character') || target.closest('button')) {
+                        customCursor.className = 'pointer'; // 切换为手型
+                    }
+                });
+                
+                document.addEventListener('mouseout', (e) => {
+                    if (this.inputMode !== INPUT_MODE.DESKTOP) return;
+                    
+                    const target = e.target;
+                    // 离开可交互对象时恢复默认样式
+                    if (target.tagName === 'BUTTON' || target.closest('.character') || target.closest('button')) {
+                        customCursor.className = 'default'; // 恢复箭头
+                    }
+                });
+                
+                // 移动端触摸事件
+                this.setupTouchEvents(customCursor);
+            }
+
+            // 设置触摸事件
+            setupTouchEvents(customCursor) {
+                // 移动端模式下，阻止原生触摸点击（防止手指直接点击按钮/角色）
+                document.addEventListener('touchstart', (e) => {
+                    if (this.inputMode !== INPUT_MODE.MOBILE) return;
+                    e.preventDefault();
+                    
+                    const touches = e.touches;
+                    
+                    if (touches.length === 1 && this.touchState.firstTouchId === null) {
+                        // 第一指按下，记录起始位置但不移动鼠标图标
+                        const touch = touches[0];
+                        this.touchState.firstTouchId = touch.identifier;
+                        this.touchState.isDragging = true;
+                        this.touchState.lastTouchX = touch.clientX;
+                        this.touchState.lastTouchY = touch.clientY;
+                        
+                        // 不改变鼠标图标位置
+                    } else if (touches.length === 2 && this.touchState.firstTouchId !== null) {
+                        // 第二指按下，视为鼠标左键点击（在鼠标图标当前位置）
+                        this.touchState.secondTouchActive = true;
+                        this.dispatchCursorClick();
+                    }
+                }, { passive: false });
+                
+                // 触摸移动 - 相对移动鼠标图标
+                document.addEventListener('touchmove', (e) => {
+                    if (this.inputMode !== INPUT_MODE.MOBILE) return;
+                    e.preventDefault();
+                    
+                    const touches = e.touches;
+                    
+                    // 找到第一指并相对移动鼠标图标
+                    for (let i = 0; i < touches.length; i++) {
+                        const touch = touches[i];
+                        if (touch.identifier === this.touchState.firstTouchId) {
+                            // 计算手指移动的距离
+                            const deltaX = touch.clientX - this.touchState.lastTouchX;
+                            const deltaY = touch.clientY - this.touchState.lastTouchY;
+                            
+                            // 相对移动鼠标图标（基于当前位置 + 手指移动距离）
+                            this.mouseX += deltaX;
+                            this.mouseY += deltaY;
+                            
+                            // 限制在屏幕范围内
+                            this.mouseX = Math.max(0, Math.min(window.innerWidth, this.mouseX));
+                            this.mouseY = Math.max(0, Math.min(window.innerHeight, this.mouseY));
+                            
+                            customCursor.style.left = this.mouseX + 'px';
+                            customCursor.style.top = this.mouseY + 'px';
+                            
+                            // 更新上次触摸位置
+                            this.touchState.lastTouchX = touch.clientX;
+                            this.touchState.lastTouchY = touch.clientY;
+                            
+                            // 检测鼠标图标下的元素，切换图标样式
+                            this.updateCursorStyle();
+                            
+                            // 更新音频（基于鼠标图标位置）
+                            this.audioManager.updateAll();
+                            break;
+                        }
+                    }
+                }, { passive: false });
+                
+                // 触摸结束
+                document.addEventListener('touchend', (e) => {
+                    if (this.inputMode !== INPUT_MODE.MOBILE) return;
+                    e.preventDefault();
+                    
+                    const touches = e.touches;
+                    
+                    if (touches.length === 0) {
+                        // 所有手指都抬起
+                        this.touchState.firstTouchId = null;
+                        this.touchState.secondTouchActive = false;
+                        this.touchState.isDragging = false;
+                        // 鼠标图标保持在最后位置
+                    } else if (touches.length === 1) {
+                        // 还剩一个手指，检查是哪个
+                        const remainingTouch = touches[0];
+                        if (remainingTouch.identifier === this.touchState.firstTouchId) {
+                            // 第二指抬起
+                            this.touchState.secondTouchActive = false;
+                        } else {
+                            // 第一指抬起，第二指变成第一指
+                            this.touchState.firstTouchId = remainingTouch.identifier;
+                            this.touchState.lastTouchX = remainingTouch.clientX;
+                            this.touchState.lastTouchY = remainingTouch.clientY;
+                        }
+                    }
+                }, { passive: false });
+                
+                // 触摸取消
+                document.addEventListener('touchcancel', (e) => {
+                    if (this.inputMode !== INPUT_MODE.MOBILE) return;
+                    
+                    this.touchState.firstTouchId = null;
+                    this.touchState.secondTouchActive = false;
+                    this.touchState.isDragging = false;
+                }, { passive: false });
+            }
+
+            // 在鼠标图标当前位置派发点击事件（模拟鼠标左键）
+            dispatchCursorClick() {
+                const clickX = this.mouseX;
+                const clickY = this.mouseY;
+                
+                // 找到鼠标图标位置下的元素
+                const elements = document.elementsFromPoint(clickX, clickY);
+                for (const el of elements) {
+                    // 检查是否点击了角色
+                    const characterEl = el.closest('.character');
+                    if (characterEl) {
+                        const character = this.characters.find(c => c.element === characterEl);
+                        if (character) {
+                            this.handleClick(character);
+                            return;
+                        }
+                    }
+                    // 检查是否点击了按钮
+                    if (el.tagName === 'BUTTON') {
+                        el.click();
+                        return;
+                    }
+                }
+            }
+
+            // 更新鼠标图标样式（检测鼠标图标下的元素）
+            updateCursorStyle() {
+                const customCursor = document.getElementById('custom-cursor');
+                const clickX = this.mouseX;
+                const clickY = this.mouseY;
+                
+                // 找到鼠标图标位置下的元素
+                const elements = document.elementsFromPoint(clickX, clickY);
+                let isInteractive = false;
+                
+                for (const el of elements) {
+                    // 检查是否是按钮或角色
+                    if (el.tagName === 'BUTTON' || el.closest('.character') || el.closest('button')) {
+                        isInteractive = true;
+                        break;
+                    }
+                }
+                
+                // 切换图标样式
+                if (isInteractive) {
+                    customCursor.className = 'pointer';
+                } else {
+                    customCursor.className = 'default';
+                }
+            }
+
+            // 切换输入模式
+            toggleInputMode() {
+                const customCursor = document.getElementById('custom-cursor');
+                const mobileHint = document.getElementById('mobile-hint');
+                
+                if (this.inputMode === INPUT_MODE.DESKTOP) {
+                    this.inputMode = INPUT_MODE.MOBILE;
+                    document.getElementById('btn-switch-input').textContent = '当前：移动端模式 | 切换到电脑端';
+                    // 移动端模式下显示鼠标图标，位置在屏幕中心
+                    customCursor.style.display = 'block';
+                    customCursor.style.left = (window.innerWidth / 2) + 'px';
+                    customCursor.style.top = (window.innerHeight / 2) + 'px';
+                    this.mouseX = window.innerWidth / 2;
+                    this.mouseY = window.innerHeight / 2;
+                    customCursor.className = 'default';
+                    // 显示移动端操作提示
+                    mobileHint.style.display = 'block';
+                } else {
+                    this.inputMode = INPUT_MODE.DESKTOP;
+                    document.getElementById('btn-switch-input').textContent = '当前：电脑端模式 | 切换到移动端';
+                    // 电脑端模式下隐藏鼠标图标，等待鼠标移动事件
+                    customCursor.style.display = 'none';
+                    customCursor.className = 'default';
+                    // 隐藏移动端操作提示
+                    mobileHint.style.display = 'none';
+                }
+                
+                // 重置触摸状态
+                this.touchState.firstTouchId = null;
+                this.touchState.secondTouchActive = false;
+                this.touchState.isDragging = false;
+            }
+
+            startGame(mode) {
+                this.currentMode = mode;
+
+                // 隐藏开始界面
+                document.getElementById('start-screen').style.display = 'none';
+
+                // 根据模式选择角色
+                if (mode === MODE.SOLO) {
+                    // 专享模式：随机选一个可以作为目标的角色（排除牛来）
+                    const targetableConfigs = this.allCharacterConfigs.filter(config => config.canBeTarget !== false);
+                    const randomConfig = targetableConfigs[Math.floor(Math.random() * targetableConfigs.length)];
+                    const character = new Character({ ...randomConfig, isTarget: true });
+                    this.characters = [character];
+                    this.targetCharacter = character;
+                } else {
+                    // 群英荟萃：所有角色，随机选一个可以作为目标的角色（排除牛来）
+                    this.characters = this.allCharacterConfigs.map(config => new Character({ ...config }));
+                    const targetableCharacters = this.characters.filter(c => c.canBeTarget);
+                    this.targetCharacter = targetableCharacters[Math.floor(Math.random() * targetableCharacters.length)];
+                    this.targetCharacter.isTarget = true;
+                }
+
+                // 设置目标画像
+                document.getElementById('target-img').src = this.targetCharacter.imagePath;
+                document.getElementById('target-name').textContent = `寻找：${this.targetCharacter.name}`;
+                document.getElementById('target-portrait').style.display = 'block';
+
+                // 随机分布角色
+                this.distributeCharacters();
+
+                // 记录开始时间
+                this.startTime = Date.now();
+                this.isGameRunning = true;
+
+                // 播放所有角色的音效
+                this.audioManager.startAll(this.characters);
+            }
+
+            distributeCharacters() {
+                const container = document.getElementById('game-container');
+                const padding = 50;
+
+                this.characters.forEach(character => {
+                    const element = character.createElement();
+                    container.appendChild(element);
+
+                    // 尝试找到不重叠的位置
+                    let x, y;
+                    let attempts = 0;
+                    const maxAttempts = 100;
+
+                    do {
+                        const maxX = window.innerWidth - character.size - padding;
+                        const maxY = window.innerHeight - character.size - padding;
+                        x = padding + Math.random() * maxX;
+                        y = padding + Math.random() * maxY;
+                        attempts++;
+                    } while (this.checkOverlap(character, x, y) && attempts < maxAttempts);
+
+                    character.setPosition(x, y);
+
+                    // 所有角色初始透明
+                    character.setOpacity(0);
+                });
+            }
+
+            checkOverlap(character, x, y) {
+                for (const other of this.characters) {
+                    if (other === character || other.x === 0 && other.y === 0) continue;
+
+                    const dx = Math.abs(x - other.x);
+                    const dy = Math.abs(y - other.y);
+                    const margin = character.size * 0.1; // 角色尺寸的10%作为间距
+                    const minDist = character.size + other.size + margin;
+
+                    if (dx < minDist && dy < minDist) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            handleClick(character) {
+                if (!this.isGameRunning) return;
+
+                if (character.isTarget) {
+                    this.winGame();
+                } else if (this.currentMode === MODE.MIX) {
+                    // 群英荟萃模式：点错角色，显示该角色但不结算
+                    character.revealed = true;
+                    character.setOpacity(1);
+                    
+                    // 如果是牛来，设置牛来为已显示状态，只播放自己的点击音效
+                    if (character.name === '牛来') {
+                        const niuLaiPlayer = this.audioManager.players.get('牛来');
+                        if (niuLaiPlayer) {
+                            niuLaiPlayer.isRevealed = true;
+                            // 停止当前播放，重新开始播放点击音效
+                            niuLaiPlayer.stop();
+                            niuLaiPlayer.playNext();
+                        }
+                    }
+                }
+            }
+
+            winGame() {
+                this.isGameRunning = false;
+                this.audioManager.stopAll();
+
+                // 显示目标
+                this.targetCharacter.setOpacity(1);
+
+                // 胜利动画
+                const element = this.targetCharacter.element;
+                element.classList.add('animate-to-center');
+                element.style.zIndex = '3000';
+                
+                const centerX = window.innerWidth / 2 - this.targetCharacter.size / 2;
+                const centerY = window.innerHeight / 2 - 200 - this.targetCharacter.size / 2;
+                const finalSize = 200;
+                
+                setTimeout(() => {
+                    element.style.left = centerX + 'px';
+                    element.style.top = centerY + 'px';
+                    element.style.width = finalSize + 'px';
+                    element.style.height = finalSize + 'px';
+                }, 10);
+
+                // 播放胜利音效（使用目标角色的胜利音效）
+                if (this.targetCharacter.victoryAudioPath) {
+                    const victoryAudio = new Audio(this.targetCharacter.victoryAudioPath);
+                    victoryAudio.volume = 1.0;
+                    victoryAudio.play().catch(e => console.log('胜利音效播放失败:', e));
+                }
+
+                // 计算用时
+                const endTime = Date.now();
+                const timeTaken = ((endTime - this.startTime) / 1000).toFixed(2);
+
+                // 延迟显示结算界面
+                setTimeout(() => {
+                    document.getElementById('result-time').textContent = `用时：${timeTaken} 秒`;
+                    document.getElementById('result-screen').style.display = 'flex';
+                }, 700);
+            }
+
+            restartGame() {
+                // 隐藏结算界面
+                document.getElementById('result-screen').style.display = 'none';
+
+                // 停止并清理所有音频播放器
+                this.audioManager.clearAll();
+
+                // 移除所有角色元素
+                this.characters.forEach(character => {
+                    if (character.element && character.element.parentNode) {
+                        character.element.parentNode.removeChild(character.element);
+                    }
+                });
+                this.characters = [];
+                this.targetCharacter = null;
+
+                // 隐藏目标画像
+                document.getElementById('target-portrait').style.display = 'none';
+
+                // 显示开始界面
+                document.getElementById('start-screen').style.display = 'flex';
+            }
+        }
+
+        // 启动游戏
+        const game = new GameManager();
+    </script>
+</body>
+</html>
